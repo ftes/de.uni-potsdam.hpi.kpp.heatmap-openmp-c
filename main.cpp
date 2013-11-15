@@ -36,7 +36,7 @@ string outFile = "output.txt";
 
 void setHotspots() {
     for (Hotspot h : hotspots) {
-        if (currentRound >= h.startRound && currentRound <= h.endRound) {
+        if (currentRound >= h.startRound && currentRound < h.endRound) {
             (*currentHeatmap)[h.y][h.x] = 1;
         }
     }
@@ -118,8 +118,8 @@ void performRound() {
         pthread_join(thread, NULL);
     }
 
-    setHotspots();
     currentRound++;
+    setHotspots();
 }
 
 // have to use *& to pass pointer as reference, otherwise we get a copy
