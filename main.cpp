@@ -36,7 +36,7 @@ string outFile = "output.txt";
 
 void setHotspots() {
     for (Hotspot h : hotspots) {
-        if (currentRound >= h.startRound && currentRound < h.endRound) {
+        if (currentRound >= h.startRound && currentRound <= h.endRound) {
             (*currentHeatmap)[h.y][h.x] = 1;
         }
     }
@@ -201,7 +201,7 @@ int main(int argc, char* argv[]) {
     initializeHeatmap(oldHeatmap);
     setHotspots();
 
-    while (currentRound < noRounds + 1) {
+    while (currentRound < noRounds) {
         performRound();
     }
 
