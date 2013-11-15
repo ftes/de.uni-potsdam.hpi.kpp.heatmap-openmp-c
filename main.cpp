@@ -201,7 +201,7 @@ int main(int argc, char* argv[]) {
     initializeHeatmap(oldHeatmap);
     setHotspots();
 
-    while (currentRound < noRounds) {
+    while (currentRound < noRounds + 1) {
         performRound();
     }
 
