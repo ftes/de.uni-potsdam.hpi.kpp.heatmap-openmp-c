@@ -92,9 +92,7 @@ void *calcHeatValues(void *args) {
 }
 
 void performRound() {
-    setHotspots();
-
-    auto tmp = currentHeatmap;
+    auto tmp = oldHeatmap;
     oldHeatmap = currentHeatmap;
     currentHeatmap = tmp;
 
