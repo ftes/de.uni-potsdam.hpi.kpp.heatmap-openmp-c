@@ -21,6 +21,7 @@ output.txt
 
 # input file
 input.txt
+coords.txt
 
 # Netbeans
 nbproject/

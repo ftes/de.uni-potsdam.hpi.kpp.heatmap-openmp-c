@@ -1,8 +1,3 @@
-/* Wikipedia: possible solution
-Another relatively simple solution is achieved by introducing a waiter at the table. Philosophers must ask his permission before taking up any forks. Because the waiter is aware of how many forks are in use, he is able to arbitrate and prevent deadlock. When four of the forks are in use, the next philosopher to request one has to wait for the waiter's permission, which is not given until a fork has been released. The logic is kept simple by specifying that philosophers always seek to pick up their left-hand fork before their right-hand fork (or vice versa). The waiter acts as a semaphore, a concept introduced by Dijkstra in 1965.[5]
-To illustrate how this works, consider that the philosophers are labelled clockwise from A to E. If A and C are eating, four forks are in use. B sits between A and C so has neither fork available, whereas D and E have one unused fork between them. Suppose D wants to eat. When he wants to take up the fifth fork, deadlock becomes likely. If instead he asks the waiter and is told to wait, we can be sure that next time two forks are released there will certainly be at least one philosopher who could successfully request a pair of forks. Therefore deadlock cannot happen.
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
@@ -10,104 +5,209 @@ To illustrate how this works, consider that the philosophers are labelled clockw
 #include <fstream>
 #include <string>
 #include <sstream>
-#include <chrono>
-#include <thread>
+#include <vector>
+#include <math.h>
+#include "Hotspot.h"
+#include "Coordinate.h"
 
 using namespace std;
 
-//a philosopher i has access to fork i and (i+1)%n
-int noPhilosophers;
-bool *forkInUse;
-unsigned long long *noFeedings;
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t *waiting;
-pthread_t *philosopherThread;
-bool finish = false;
+int blockSideLengthPerThread = 10;
 
-const char fileName[] = "output.txt";
+struct Rectangle {
+    int fromX;
+    int toX;
+    int fromY;
+    int toY;
+};
 
-void readyToEat(int i, int leftFork, int rightFork) {
-    pthread_mutex_lock(&mutex);
-    while (forkInUse[leftFork] || forkInUse[rightFork]) {
-        pthread_cond_wait(&waiting[i], &mutex);
+int width;
+int height;
+int noRounds;
+int currentRound = 0;
+bool writeCoords = false;
+vector<Coordinate> coords;
+vector<Hotspot> hotspots;
+
+vector<vector<double >> *oldHeatmap;
+vector<vector<double >> *currentHeatmap;
+
+string outFile = "output.txt";
+
+void setHotspots() {
+    for (Hotspot h : hotspots) {
+        if (currentRound >= h.startRound && currentRound < h.endRound) {
+            (*currentHeatmap)[h.y][h.x] = 1;
+        }
     }
-    forkInUse[leftFork] = true;
-    forkInUse[rightFork] = true;
-    pthread_mutex_unlock(&mutex);
 }
 
-void doneEating(int i, int leftFork, int rightFork, int leftPhilosopher, int rightPhilosopher) {    
-    pthread_mutex_lock(&mutex);
-    forkInUse[leftFork] = false;
-    forkInUse[rightFork] = false;
-    pthread_cond_signal(&waiting[leftPhilosopher]);
-    pthread_cond_signal(&waiting[rightPhilosopher]);
-    pthread_mutex_unlock(&mutex);
+vector<vector<int >> parseCsv(string fileName) {
+    ifstream file(fileName.c_str());
+    vector < vector<int >> result;
+    string line;
+    //ignore first line
+    getline(file, line);
+    while (getline(file, line)) {
+        vector<int> items;
+        stringstream ss(line);
+        int i;
+        while (ss >> i) {
+            items.push_back(i);
+            if (ss.peek() == ',') ss.ignore();
+        }
+        result.push_back(items);
+    }
+    file.close();
+    return result;
 }
 
-void *philosopher(void *args) {
-    int *i = (int *) args;
-    int leftFork = *i;
-    int rightFork = (*i + 1) % noPhilosophers;
-    int leftPhilosopher = *i == 0 ? noPhilosophers - 1 : *i - 1; //mod on negative number results in negative number in C++
-    int rightPhilosopher = rightFork;
+double getAverageHeat(int centerX, int centerY) {
+    int fromX = centerX == 0 ? 0 : centerX - 1;
+    int toX = centerX == width - 1 ? centerX : centerX + 1;
+    int fromY = centerY == 0 ? 0 : centerY - 1;
+    int toY = centerY == height - 1 ? centerY : centerY + 1;
 
+    double sum = 0;
 
-    while (!finish) {
-        readyToEat(*i, leftFork, rightFork);
-        
-        //eat
-        noFeedings[*i]++;
-        
-        doneEating(*i, leftFork, rightFork, leftPhilosopher, rightPhilosopher);
+    for (int y = fromY; y < toY + 1; y++) {
+        vector<double> *row = &(*oldHeatmap)[y];
+        for (int x = fromX; x < toX + 1; x++) {
+            sum += (*row)[x];
+        }
     }
 
+    return sum / 9;
+}
+
+void *calcHeatValues(void *args) {
+    Rectangle *rect = (Rectangle *) args;
+    for (int y = rect->fromY; y < rect->toY + 1; y++) {
+        vector<double> *row = &(*currentHeatmap)[y];
+        for (int x = rect->fromX; x < rect->toX + 1; x++) {
+            (*row)[x] = getAverageHeat(x, y);
+        }
+    }
     return NULL;
+}
+
+void performRound() {
+    setHotspots();
+
+    auto tmp = currentHeatmap;
+    oldHeatmap = currentHeatmap;
+    currentHeatmap = tmp;
+
+    vector<pthread_t> threads;
+
+    for (int j = 0; j < height; j += blockSideLengthPerThread) {
+        for (int i = 0; i < width; i += blockSideLengthPerThread) {
+            Rectangle *rect = new Rectangle;
+            rect->fromX = i;
+            rect->fromY = j;
+            rect->toX = i + blockSideLengthPerThread - 1;
+            rect->toY = j + blockSideLengthPerThread - 1;
+            if (rect->toX > width - 1) rect->toX = width - 1;
+            if (rect->toY > height - 1) rect->toY = height - 1;
+
+            pthread_t thread;
+            pthread_create(&thread, NULL, calcHeatValues, rect);
+            threads.push_back(thread);
+        }
+    }
+
+    for (pthread_t thread : threads) {
+        pthread_join(thread, NULL);
+    }
+
+    setHotspots();
+    currentRound++;
+}
+
+// have to use *& to pass pointer as reference, otherwise we get a copy
+// of the pointer, and if we assign a new memory location to it this is local
+
+void initializeHeatmap(vector<vector<double >> *&heatmap) {
+    heatmap = new vector < vector<double >> ();
+    for (int y = 0; y < height; y++) {
+        vector<double> row;
+        for (int x = 0; x < width; x++) {
+            row.push_back(0);
+        }
+        heatmap->push_back(row);
+    }
+}
+
+string getOutputValue(double cell) {
+    string value;
+    if (cell > 0.9) {
+        value = "X";
+    } else {
+        value = to_string((int) floor((cell + 0.09) * 10));
+    }
+    return value;
+}
+
+void writeOutput() {
+    remove(outFile.c_str());
+    ofstream output(outFile.c_str());
+    if (!writeCoords) {
+        for (vector<double> row : *currentHeatmap) {
+            for (double cell : row) {
+                output << getOutputValue(cell).c_str();
+            }
+            output << "\n";
+        }
+    } else {
+        for (Coordinate coord : coords) {
+            double cell = (*currentHeatmap)[coord.y][coord.x];
+            output << cell <<"\n";
+        }
+    }
+    output.close();
+}
+
+void printHeatmap(vector<vector<double >> *heatmap) {
+    for (vector<double> row : *heatmap) {
+        for (double cell : row) {
+            printf("%s ", getOutputValue(cell).c_str());
+        }
+        printf("\n");
+    }
 }
 
 int main(int argc, char* argv[]) {
     //read input
-    noPhilosophers = atoi(argv[1]);
-    int noSeconds = atoi(argv[2]);
+    width = atoi(argv[1]);
+    height = atoi(argv[2]);
+    noRounds = atoi(argv[3]);
 
-    forkInUse = new bool[noPhilosophers];
-    noFeedings = new unsigned long long[noPhilosophers];
-    waiting = new pthread_cond_t[noPhilosophers];
-    philosopherThread = new pthread_t[noPhilosophers];
+    string hotspotsFile = string(argv[4]);
 
-    //initialize data structures and spawn threads
-    for (int i = 0; i < noPhilosophers; i++) {
-        forkInUse[i] = false;
-        noFeedings[i] = 0;
-        waiting[i] = PTHREAD_COND_INITIALIZER;
-
-        int *privateI = new int;
-        *privateI = i;
-        pthread_create(&philosopherThread[i], NULL, philosopher, (void *) privateI);
+    if (argc == 6) {
+        string coordFile = string(argv[5]);
+        for (vector<int> line : parseCsv(coordFile)) {
+            Coordinate coord(line.at(0), line.at(1));
+            coords.push_back(coord);
+        }
+        writeCoords = true;
     }
 
-    //sleep
-    std::this_thread::sleep_for(std::chrono::seconds(noSeconds));
-    finish = true;
-
-    //join threads
-    for (int i = 0; i < noPhilosophers; i++) {
-        pthread_join(philosopherThread[i], NULL);
+    //read hotspots
+    for (vector<int> line : parseCsv(hotspotsFile)) {
+        Hotspot hotspot(line.at(0), line.at(1), line.at(2), line.at(3));
+        hotspots.push_back(hotspot);
     }
 
-    //output result
-    ostringstream itemString;
-    for (int i = 0; i < noPhilosophers; i++) {
-        itemString << noFeedings[i] << ";";
+    initializeHeatmap(currentHeatmap);
+    initializeHeatmap(oldHeatmap);
+    setHotspots();
+
+    while (currentRound < noRounds) {
+        performRound();
     }
-    string s = itemString.str();
-    s = s.substr(0, s.size() - 1);
-    printf("Result: %s\n", s.c_str());
-    ofstream output;
-    remove(fileName);
-    output.open(fileName);
-    output << s;
-    output.close();
+
+    writeOutput();
 
     exit(0);
 }
