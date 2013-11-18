@@ -10,9 +10,13 @@
 #include "Hotspot.h"
 #include "Coordinate.h"
 
+//only using this to determine number of cores!
+#include <thread>
+
 using namespace std;
 
-int blockSideLengthPerThread = 10;
+int xSideLengthPerThread;
+int ySideLengthPerThread;
 
 struct Rectangle {
     int fromX;
@@ -98,13 +102,13 @@ void performRound() {
 
     vector<pthread_t> threads;
 
-    for (int j = 0; j < height; j += blockSideLengthPerThread) {
-        for (int i = 0; i < width; i += blockSideLengthPerThread) {
+    for (int j = 0; j < height; j += ySideLengthPerThread) {
+        for (int i = 0; i < width; i += xSideLengthPerThread) {
             Rectangle *rect = new Rectangle;
             rect->fromX = i;
             rect->fromY = j;
-            rect->toX = i + blockSideLengthPerThread - 1;
-            rect->toY = j + blockSideLengthPerThread - 1;
+            rect->toX = i + xSideLengthPerThread - 1;
+            rect->toY = j + ySideLengthPerThread - 1;
             if (rect->toX > width - 1) rect->toX = width - 1;
             if (rect->toY > height - 1) rect->toY = height - 1;
 
@@ -196,6 +200,15 @@ int main(int argc, char* argv[]) {
         Hotspot hotspot(line.at(0), line.at(1), line.at(2), line.at(3));
         hotspots.push_back(hotspot);
     }
+    
+    //how many threads?
+    int maxNoThreads = thread::hardware_concurrency();
+    if (maxNoThreads == 0) {
+    	cout << "Could not determine number of cores";
+    	maxNoThreads = 10;
+    }
+    xSideLengthPerThread = (int) width / maxNoThreads;
+    ySideLengthPerThread = height;
 
     initializeHeatmap(currentHeatmap);
     initializeHeatmap(oldHeatmap);
