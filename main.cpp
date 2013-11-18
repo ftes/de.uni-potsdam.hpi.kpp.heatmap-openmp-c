@@ -15,8 +15,11 @@
 
 using namespace std;
 
-int xSideLengthPerThread = 10;
-int ySideLengthPerThread = 10;
+int xSideLengthPerThread;
+int ySideLengthPerThread;
+
+int xMinSideLengthPerThread = 10;
+int yMinSideLengthPerThread = 10;
 
 struct Rectangle {
     int fromX;
@@ -202,13 +205,17 @@ int main(int argc, char* argv[]) {
     }
     
     //how many threads?
-    /**int maxNoThreads = thread::hardware_concurrency();
+    int maxNoThreads = thread::hardware_concurrency();
     if (maxNoThreads == 0) {
     	cout << "Could not determine number of cores";
     	maxNoThreads = 10;
     }
+    maxNoThreads = (int) sqrt(maxNoThreads);
     xSideLengthPerThread = (int) width / maxNoThreads;
-    ySideLengthPerThread = height;**/
+    ySideLengthPerThread = (int) height / maxNoThreads;
+    if (xSideLengthPerThread < xMinSideLengthPerThread) xSideLengthPerThread = xMinSideLengthPerThread;
+    if (ySideLengthPerThread < yMinSideLengthPerThread) ySideLengthPerThread = yMinSideLengthPerThread;
+    cout << "Block size per thread: " << xSideLengthPerThread << "x" << ySideLengthPerThread << "\n";
 
     initializeHeatmap(currentHeatmap);
     initializeHeatmap(oldHeatmap);
