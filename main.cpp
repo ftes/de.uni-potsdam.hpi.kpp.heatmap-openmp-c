@@ -209,9 +209,9 @@ int main(int argc, char* argv[]) {
     	maxNumberOfThreads = 10;
     }
     cout << "Max number of threads: " << maxNumberOfThreads << "\n";
-    maxNumberOfThreads = (int) sqrt(maxNumberOfThreads);
-    xSideLengthPerThread = (int) width / maxNumberOfThreads;
-    ySideLengthPerThread = (int) height / maxNumberOfThreads;
+    int sqrtMaxNumberOfThreads = (int) sqrt(maxNumberOfThreads);
+    xSideLengthPerThread = (int) width / sqrtMaxNumberOfThreads;
+    ySideLengthPerThread = (int) height / sqrtMaxNumberOfThreads;
     if (xSideLengthPerThread < xMinSideLengthPerThread) xSideLengthPerThread = xMinSideLengthPerThread;
     if (ySideLengthPerThread < yMinSideLengthPerThread) ySideLengthPerThread = yMinSideLengthPerThread;
     cout << "Block size per thread: " << xSideLengthPerThread << "x" << ySideLengthPerThread << "\n";
