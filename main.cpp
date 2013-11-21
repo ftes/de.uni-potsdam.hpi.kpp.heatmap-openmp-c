@@ -215,7 +215,7 @@ int main(int argc, char* argv[]) {
     ySideLengthPerThread = (int) height / maxNoThreads;
     if (xSideLengthPerThread < xMinSideLengthPerThread) xSideLengthPerThread = xMinSideLengthPerThread;
     if (ySideLengthPerThread < yMinSideLengthPerThread) ySideLengthPerThread = yMinSideLengthPerThread;
-    cout << "Block size per thread: " << xSideLengthPerThread << "x" << ySideLengthPerThread << "\n";
+    //cout << "Block size per thread: " << xSideLengthPerThread << "x" << ySideLengthPerThread << "\n";
 
     initializeHeatmap(currentHeatmap);
     initializeHeatmap(oldHeatmap);
