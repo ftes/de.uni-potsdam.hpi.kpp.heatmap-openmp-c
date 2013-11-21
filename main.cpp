@@ -28,7 +28,7 @@ struct Rectangle {
 
 int width;
 int height;
-int noRounds;
+int numberOfRounds;
 int currentRound = 0;
 bool writeCoords = false;
 vector<Coordinate> coords;
@@ -183,7 +183,7 @@ int main(int argc, char* argv[]) {
     //read input
     width = atoi(argv[1]);
     height = atoi(argv[2]);
-    noRounds = atoi(argv[3]);
+    numberOfRounds = atoi(argv[3]);
 
     string hotspotsFile = string(argv[4]);
 
@@ -203,23 +203,24 @@ int main(int argc, char* argv[]) {
     }
     
     //how many threads?
-    int maxNoThreads = sysconf( _SC_NPROCESSORS_ONLN );
-    if (maxNoThreads == 0) {
+    int maxNumberOfThreads = sysconf( _SC_NPROCESSORS_ONLN );
+    if (maxNumberOfThreads == 0) {
     	cout << "Could not determine number of cores";
-    	maxNoThreads = 10;
+    	maxNumberOfThreads = 10;
     }
-    maxNoThreads = (int) sqrt(maxNoThreads);
-    xSideLengthPerThread = (int) width / maxNoThreads;
-    ySideLengthPerThread = (int) height / maxNoThreads;
+    cout << "Max number of threads: " << maxNumberOfThreads << "\n";
+    maxNumberOfThreads = (int) sqrt(maxNumberOfThreads);
+    xSideLengthPerThread = (int) width / maxNumberOfThreads;
+    ySideLengthPerThread = (int) height / maxNumberOfThreads;
     if (xSideLengthPerThread < xMinSideLengthPerThread) xSideLengthPerThread = xMinSideLengthPerThread;
     if (ySideLengthPerThread < yMinSideLengthPerThread) ySideLengthPerThread = yMinSideLengthPerThread;
-    //cout << "Block size per thread: " << xSideLengthPerThread << "x" << ySideLengthPerThread << "\n";
+    cout << "Block size per thread: " << xSideLengthPerThread << "x" << ySideLengthPerThread << "\n";
 
     initializeHeatmap(currentHeatmap);
     initializeHeatmap(oldHeatmap);
     setHotspots();
 
-    while (currentRound < noRounds) {
+    while (currentRound < numberOfRounds) {
         performRound();
     }
 
