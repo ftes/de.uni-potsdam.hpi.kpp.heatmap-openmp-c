@@ -17,7 +17,7 @@ int xSideLengthPerThread;
 int ySideLengthPerThread;
 
 int xMinSideLengthPerThread = 10;
-int yMinSideLengthPerThread = 10;
+int yMinSideLengthPerThread = 1;
 
 struct Rectangle {
     int fromX;
@@ -209,9 +209,8 @@ int main(int argc, char* argv[]) {
     	maxNumberOfThreads = 10;
     }
     cout << "Max number of threads: " << maxNumberOfThreads << "\n";
-    int sqrtMaxNumberOfThreads = (int) sqrt(maxNumberOfThreads);
-    xSideLengthPerThread = (int) width / sqrtMaxNumberOfThreads;
-    ySideLengthPerThread = (int) height / sqrtMaxNumberOfThreads;
+    xSideLengthPerThread = width;
+    ySideLengthPerThread = (int) ceil(height / maxNumberOfThreads);
     if (xSideLengthPerThread < xMinSideLengthPerThread) xSideLengthPerThread = xMinSideLengthPerThread;
     if (ySideLengthPerThread < yMinSideLengthPerThread) ySideLengthPerThread = yMinSideLengthPerThread;
     cout << "Block size per thread: " << xSideLengthPerThread << "x" << ySideLengthPerThread << "\n";
