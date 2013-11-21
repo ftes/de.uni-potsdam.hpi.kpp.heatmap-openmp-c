@@ -7,11 +7,9 @@
 #include <sstream>
 #include <vector>
 #include <math.h>
+#include <unistd.h>
 #include "Hotspot.h"
 #include "Coordinate.h"
-
-//only using this to determine number of cores!
-#include <thread>
 
 using namespace std;
 
@@ -205,7 +203,7 @@ int main(int argc, char* argv[]) {
     }
     
     //how many threads?
-    int maxNoThreads = thread::hardware_concurrency();
+    int maxNoThreads = sysconf( _SC_NPROCESSORS_ONLN );
     if (maxNoThreads == 0) {
     	cout << "Could not determine number of cores";
     	maxNoThreads = 10;

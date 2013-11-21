@@ -17,11 +17,8 @@ heatmap
 heatmap.tar
 
 # output file
-output.txt
-
-# input file
-input.txt
-coords.txt
+*.txt
+*.csv
 
 # Netbeans
 nbproject/
