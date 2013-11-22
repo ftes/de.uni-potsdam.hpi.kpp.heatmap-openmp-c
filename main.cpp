@@ -16,9 +16,6 @@ using namespace std;
 int xSideLengthPerThread;
 int ySideLengthPerThread;
 
-int xMinSideLengthPerThread = 10;
-int yMinSideLengthPerThread = 1;
-
 struct Rectangle {
     int fromX;
     int toX;
@@ -208,12 +205,10 @@ int main(int argc, char* argv[]) {
     	cout << "Could not determine number of cores";
     	maxNumberOfThreads = 10;
     }
-    cout << "Max number of threads: " << maxNumberOfThreads << "\n";
+    //cout << "Max number of threads: " << maxNumberOfThreads << "\n";
     xSideLengthPerThread = width;
     ySideLengthPerThread = (int) ceil(height / maxNumberOfThreads);
-    if (xSideLengthPerThread < xMinSideLengthPerThread) xSideLengthPerThread = xMinSideLengthPerThread;
-    if (ySideLengthPerThread < yMinSideLengthPerThread) ySideLengthPerThread = yMinSideLengthPerThread;
-    cout << "Block size per thread: " << xSideLengthPerThread << "x" << ySideLengthPerThread << "\n";
+    //cout << "Block size per thread: " << xSideLengthPerThread << "x" << ySideLengthPerThread << "\n";
 
     initializeHeatmap(currentHeatmap);
     initializeHeatmap(oldHeatmap);
