@@ -1,6 +1,6 @@
 CC=g++
-CFLAGS=-c -Wall -std=c++11 -pthread -Ofast
-LDFLAGS=-pthread
+CFLAGS=-c -Wall -std=c++11 -fopenmp -Ofast
+LDFLAGS=-pthread -fopenmp
 SOURCES=main.cpp Hotspot.cpp Coordinate.cpp
 OBJECTS=$(SOURCES:.cpp=.o)
 EXECUTABLE=heatmap

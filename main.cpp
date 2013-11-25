@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
+#include <omp.h>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -13,16 +13,6 @@
 
 using namespace std;
 
-int xSideLengthPerThread;
-int ySideLengthPerThread;
-
-struct Rectangle {
-    int fromX;
-    int toX;
-    int fromY;
-    int toY;
-};
-
 int width;
 int height;
 int numberOfRounds;
@@ -31,15 +21,19 @@ bool writeCoords = false;
 vector<Coordinate> coords;
 vector<Hotspot> hotspots;
 
-vector<vector<double >> *oldHeatmap;
-vector<vector<double >> *currentHeatmap;
+vector<double> *oldHeatmap;
+vector<double> *currentHeatmap;
 
 string outFile = "output.txt";
+
+int getIndex(int x, int y) {
+	return y * width + x;
+}
 
 void setHotspots() {
     for (Hotspot h : hotspots) {
         if (currentRound >= h.startRound && currentRound < h.endRound) {
-            (*currentHeatmap)[h.y][h.x] = 1;
+            (*currentHeatmap)[getIndex(h.x, h.y)] = 1;
         }
     }
 }
@@ -72,52 +66,30 @@ double getAverageHeat(int centerX, int centerY) {
 
     double sum = 0;
 
+	#pragma omp parallel for reduction(+:sum)
     for (int y = fromY; y < toY + 1; y++) {
-        vector<double> *row = &(*oldHeatmap)[y];
+    	double innerSum = 0;
+    	#pragma omp parallel for reduction(+:innerSum)
         for (int x = fromX; x < toX + 1; x++) {
-            sum += (*row)[x];
+            innerSum += (*oldHeatmap)[getIndex(x, y)];
         }
+        sum += innerSum;
     }
 
     return sum / 9;
-}
-
-void *calcHeatValues(void *args) {
-    Rectangle *rect = (Rectangle *) args;
-    for (int y = rect->fromY; y < rect->toY + 1; y++) {
-        vector<double> *row = &(*currentHeatmap)[y];
-        for (int x = rect->fromX; x < rect->toX + 1; x++) {
-            (*row)[x] = getAverageHeat(x, y);
-        }
-    }
-    return NULL;
 }
 
 void performRound() {
     auto tmp = oldHeatmap;
     oldHeatmap = currentHeatmap;
     currentHeatmap = tmp;
-
-    vector<pthread_t> threads;
-
-    for (int j = 0; j < height; j += ySideLengthPerThread) {
-        for (int i = 0; i < width; i += xSideLengthPerThread) {
-            Rectangle *rect = new Rectangle;
-            rect->fromX = i;
-            rect->fromY = j;
-            rect->toX = i + xSideLengthPerThread - 1;
-            rect->toY = j + ySideLengthPerThread - 1;
-            if (rect->toX > width - 1) rect->toX = width - 1;
-            if (rect->toY > height - 1) rect->toY = height - 1;
-
-            pthread_t thread;
-            pthread_create(&thread, NULL, calcHeatValues, rect);
-            threads.push_back(thread);
+    
+    #pragma omp parallel for
+    for (int y = 0; y < height; y++) {    
+    	#pragma omp parallel for
+        for (int x = 0; x < width; x++) {
+            (*currentHeatmap)[getIndex(x,y)] = getAverageHeat(x, y);
         }
-    }
-
-    for (pthread_t thread : threads) {
-        pthread_join(thread, NULL);
     }
 
     currentRound++;
@@ -127,14 +99,15 @@ void performRound() {
 // have to use *& to pass pointer as reference, otherwise we get a copy
 // of the pointer, and if we assign a new memory location to it this is local
 
-void initializeHeatmap(vector<vector<double >> *&heatmap) {
-    heatmap = new vector < vector<double >> ();
-    for (int y = 0; y < height; y++) {
-        vector<double> row;
-        for (int x = 0; x < width; x++) {
-            row.push_back(0);
-        }
-        heatmap->push_back(row);
+void initializeHeatmap(vector<double> *&heatmap) {
+	int size = width * height;
+    heatmap = new vector<double>(size);
+    #pragma omp parallel for
+    for (int y=0; y<height; y++) {
+    	#pragma omp parallel for
+    	for (int x = 0; x<width; x++) {
+        	(*heatmap)[getIndex(x, y)] = 0;
+    	}
     }
 }
 
@@ -152,28 +125,20 @@ void writeOutput() {
     remove(outFile.c_str());
     ofstream output(outFile.c_str());
     if (!writeCoords) {
-        for (vector<double> row : *currentHeatmap) {
-            for (double cell : row) {
+        for (int y=0; y<height; y++) {
+           	for (int x=0; x<width; x++) {
+           		double cell = (*currentHeatmap)[getIndex(x, y)];
                 output << getOutputValue(cell).c_str();
             }
             output << "\n";
         }
     } else {
         for (Coordinate coord : coords) {
-            double cell = (*currentHeatmap)[coord.y][coord.x];
+           	double cell = (*currentHeatmap)[getIndex(coord.x, coord.y)];
             output << cell <<"\n";
         }
     }
     output.close();
-}
-
-void printHeatmap(vector<vector<double >> *heatmap) {
-    for (vector<double> row : *heatmap) {
-        for (double cell : row) {
-            printf("%s ", getOutputValue(cell).c_str());
-        }
-        printf("\n");
-    }
 }
 
 int main(int argc, char* argv[]) {
@@ -198,17 +163,6 @@ int main(int argc, char* argv[]) {
         Hotspot hotspot(line.at(0), line.at(1), line.at(2), line.at(3));
         hotspots.push_back(hotspot);
     }
-    
-    //how many threads?
-    int maxNumberOfThreads = sysconf( _SC_NPROCESSORS_ONLN );
-    if (maxNumberOfThreads == 0) {
-    	cout << "Could not determine number of cores";
-    	maxNumberOfThreads = 10;
-    }
-    //cout << "Max number of threads: " << maxNumberOfThreads << "\n";
-    xSideLengthPerThread = width;
-    ySideLengthPerThread = (int) ceil(height / maxNumberOfThreads);
-    //cout << "Block size per thread: " << xSideLengthPerThread << "x" << ySideLengthPerThread << "\n";
 
     initializeHeatmap(currentHeatmap);
     initializeHeatmap(oldHeatmap);
