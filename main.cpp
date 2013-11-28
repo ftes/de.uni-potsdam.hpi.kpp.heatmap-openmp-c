@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <omp.h>
+#include <pthread.h>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -21,19 +21,15 @@ bool writeCoords = false;
 vector<Coordinate> coords;
 vector<Hotspot> hotspots;
 
-vector<double> *oldHeatmap;
-vector<double> *currentHeatmap;
+vector<vector<double >> *oldHeatmap;
+vector<vector<double >> *currentHeatmap;
 
 string outFile = "output.txt";
-
-int getIndex(int x, int y) {
-	return y * width + x;
-}
 
 void setHotspots() {
     for (Hotspot h : hotspots) {
         if (currentRound >= h.startRound && currentRound < h.endRound) {
-            (*currentHeatmap)[getIndex(h.x, h.y)] = 1;
+            (*currentHeatmap)[h.y][h.x] = 1;
         }
     }
 }
@@ -66,14 +62,12 @@ double getAverageHeat(int centerX, int centerY) {
 
     double sum = 0;
 
-	#pragma omp parallel for reduction(+:sum)
+	//somehow slows this down
+	//#pragma omp parallel for collapse(2) reduction(+:sum)
     for (int y = fromY; y < toY + 1; y++) {
-    	double innerSum = 0;
-    	#pragma omp parallel for reduction(+:innerSum)
         for (int x = fromX; x < toX + 1; x++) {
-            innerSum += (*oldHeatmap)[getIndex(x, y)];
+            sum += (*oldHeatmap)[y][x];
         }
-        sum += innerSum;
     }
 
     return sum / 9;
@@ -83,12 +77,11 @@ void performRound() {
     auto tmp = oldHeatmap;
     oldHeatmap = currentHeatmap;
     currentHeatmap = tmp;
-    
-    #pragma omp parallel for
-    for (int y = 0; y < height; y++) {    
-    	#pragma omp parallel for
+
+	#pragma omp parallel for collapse(2)
+    for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
-            (*currentHeatmap)[getIndex(x,y)] = getAverageHeat(x, y);
+        	(*currentHeatmap)[y][x] = getAverageHeat(x, y);
         }
     }
 
@@ -99,16 +92,8 @@ void performRound() {
 // have to use *& to pass pointer as reference, otherwise we get a copy
 // of the pointer, and if we assign a new memory location to it this is local
 
-void initializeHeatmap(vector<double> *&heatmap) {
-	int size = width * height;
-    heatmap = new vector<double>(size);
-    #pragma omp parallel for
-    for (int y=0; y<height; y++) {
-    	#pragma omp parallel for
-    	for (int x = 0; x<width; x++) {
-        	(*heatmap)[getIndex(x, y)] = 0;
-    	}
-    }
+void initializeHeatmap(vector<vector<double >> *&heatmap) {
+    heatmap = new vector < vector<double >> (height, vector<double>(width, 0));
 }
 
 string getOutputValue(double cell) {
@@ -125,20 +110,28 @@ void writeOutput() {
     remove(outFile.c_str());
     ofstream output(outFile.c_str());
     if (!writeCoords) {
-        for (int y=0; y<height; y++) {
-           	for (int x=0; x<width; x++) {
-           		double cell = (*currentHeatmap)[getIndex(x, y)];
+        for (vector<double> row : *currentHeatmap) {
+            for (double cell : row) {
                 output << getOutputValue(cell).c_str();
             }
             output << "\n";
         }
     } else {
         for (Coordinate coord : coords) {
-           	double cell = (*currentHeatmap)[getIndex(coord.x, coord.y)];
+            double cell = (*currentHeatmap)[coord.y][coord.x];
             output << cell <<"\n";
         }
     }
     output.close();
+}
+
+void printHeatmap(vector<vector<double >> *heatmap) {
+    for (vector<double> row : *heatmap) {
+        for (double cell : row) {
+            printf("%s ", getOutputValue(cell).c_str());
+        }
+        printf("\n");
+    }
 }
 
 int main(int argc, char* argv[]) {
